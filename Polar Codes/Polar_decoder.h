@@ -17,29 +17,36 @@ public:
 	void Decode(std::string _method, uint _search_width = 1, uint _CRC_para_r = 24); // _method = SC, SCL, CA-SCL
 private:
 	//----------------Interface of several decoding algorithms -------------
-	void decode_SC();
-	void decode_SCL(uint _search_width);
 	void decode_CASCL(uint _search_width = 1, uint _CRC_para_r = 24);
 
-	//---------------- Basic compute function -------------------------------
-	double f_blue(double L1, double L2);
-	double g_red(double L1, double L2, BOOL u);
+	//---------------- functions of SCL ------------------------------------
+	void decode_SCL(uint _search_width);
+	void extendPath_UnfrozenBit(uint cur_phase, uint _L);
+	void extendPath_FrozenBit(uint cur_phase, uint _L);
+	uint clonePath(uint path_ind_cloned);
+	void killPath(uint path_ind_killed);
 
-	//---------------- data struct ------------------------------------------
-	void init_data_struct_of_SCL(uint L, uint M, uint N);
-	void set_data_struct_of_SCL(uint L, uint M, uint N);
-	void free_data_struct_of_SCL(uint L, uint M, uint N);
+	void update_List_BAT(uint cur_phase, uint _L);
+	void update_List_LLR(uint cur_phase, uint _L);
+	uint assignInitPath();
 
-	void show_data_struct_of_SCL(uint L, uint M, uint N, uint _cur_phase);
-	void show_fixed_struct_of_SCL(uint L, uint M, uint N);
-	void show_array_struct_of_SCL(uint L, uint M, uint N);
-	void show_code_struct_of_SCL(uint L, uint M, uint N, uint _cur_phase);
+	//---------------- data struct of SCL ----------------------------------
+	void init_data_struct_of_SCL(uint _L);
+	void set_data_struct_of_SCL(uint _L);
+	void free_data_struct_of_SCL(uint _L);
+	void show_data_struct_of_SCL(uint _L, uint _cur_phase);
+	void show_fixed_struct_of_SCL(uint _L);
+	void show_array_struct_of_SCL(uint _L);
+	void show_code_struct_of_SCL(uint _L, uint _cur_phase);
 
 	//---------------- SC ---------------------------------------------------
+	void decode_SC();
 	void update_BAT(uint cur_phase, uint path);
 	void update_LLR(uint cur_phase, uint path);
 	void compute_channel_llr(double *_y_in, uint _length, double *_z_out);	// layer = 0
 	void compute_inner_llr(double ***LLR, uint _path, uint _layer, uint _global_phase);	// layer > 0
+	double f_blue(double L1, double L2);
+	double g_red(double L1, double L2, BOOL u);
 
 public:
 	double sigma2;

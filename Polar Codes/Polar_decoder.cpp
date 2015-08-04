@@ -56,24 +56,70 @@ void
 Polar_decoder::decode_CASCL(uint _L, uint _CRC_r){}
 
 
-//------------------------- I'm working on SC -----------------------------------
+//------------------------- I'm working on SCL -----------------------------------
 void
 Polar_decoder::decode_SCL(uint _L)
 {
-std::cout << "##############  INIT       ################\n";
-	init_data_struct_of_SCL(_L, log2N, N);
-	set_data_struct_of_SCL(_L, log2N, N);
-show_fixed_struct_of_SCL(_L, log2N, N);
-std::cout << "##############  PROCESSING ################\n";
+	std::cout << "##############  INIT       ################\n";
+	init_data_struct_of_SCL(_L);
+	show_fixed_struct_of_SCL(_L);
+	std::cout << "##############  PROCESSING ################\n";
+
 	for (int cur_phase = 0; cur_phase < N; cur_phase++)
 	{
+		// extend l paths in N phases
+		uint init_path = assignInitPath();
+		for (uint cur_phase = 0; cur_phase < N; cur_phase++) {
+			update_BAT(cur_phase, _L);
+			update_LLR(cur_phase, _L);
+			if (0 == pattern[cur_phase]) //frozen bitset
+				extendPath_FrozenBit(cur_phase, _L);
+			else
+				extendPath_UnfrozenBit(cur_phase, _L);
+		}
 
-//show_data_struct_of_SCL(_L, log2N, N, cur_phase);
+		// find best codeword which passed CRC in the list
+
+
+
+		//show_data_struct_of_SCL(_L, log2N, N, cur_phase);
 	}
 
-	free_data_struct_of_SCL(_L, log2N, N);
-std::cout << "##############  END        ################\n";
+	free_data_struct_of_SCL(_L);
+	std::cout << "##############  END        ################\n";
 }
+void
+Polar_decoder::update_List_BAT(uint cur_phase, uint _L)
+{
+}
+void
+Polar_decoder::update_List_LLR(uint cur_phase, uint _L)
+{
+
+}
+uint
+Polar_decoder::assignInitPath()
+{
+//	if (PathInactive.empty()){
+//		std::cout << "Stack of inactive path is empty!\n";
+//		std::exit(EXIT_FAILURE);
+//	}
+	uint init_path = PathInactive.top();
+					 PathInactive.pop();
+
+	PathActiveOrNot[init_path] = TRUE;
+	for (size_t layer = 0; layer < log2N+1; layer++)
+	{
+		uint s = ArrayInactive[layer].top();
+		PathIndexToArrayIndex[init_path][layer] = s;
+		ArrayReferenceCount[init_path][s] = 1;
+	}
+
+	return init_path;
+}
+
+
+//----------------------------- SC --------------------------------------
 void
 Polar_decoder::decode_SC()
 {
@@ -82,9 +128,9 @@ Polar_decoder::decode_SC()
 
 	init_data_struct_of_SCL(L, log2N, N);
 
-//std::cout << "##############  INIT       ################\n";
-//show_fixed_struct_of_SCL(L, log2N, N);
-//std::cout << "##############  PROCESSING ################\n";
+	//std::cout << "##############  INIT       ################\n";
+	//show_fixed_struct_of_SCL(L, log2N, N);
+	//std::cout << "##############  PROCESSING ################\n";
 
 	for (int cur_phase = 0; cur_phase < N; cur_phase++)
 	{
@@ -94,21 +140,22 @@ Polar_decoder::decode_SC()
 
 		//update PM && Path extend
 		double cur_llr = LLR[PATH][log2N][0];
-		if (0 == pattern[cur_phase]){ // frozen bit
+		if (0 == pattern[cur_phase]) { // frozen bit
 			EstimatedWord[PATH][cur_phase] = 0;
 			if (cur_llr < 0)
 				PathMetricsOfForks[0][PATH] += abs(cur_llr);
-		}else {						 // info bit
+		}
+		else {						 // info bit
 			if (cur_llr < 0)
 				EstimatedWord[PATH][cur_phase] = 0;
 			else
 				EstimatedWord[PATH][cur_phase] = 1;
 		}
-//std::cout << "##############  PHASE = " << cur_phase << " ################\n";
-//show_varied_struct_of_SCL(L, log2N, N);
+		//std::cout << "##############  PHASE = " << cur_phase << " ################\n";
+		//show_varied_struct_of_SCL(L, log2N, N);
 	}
 
-//std::cout << "##############  END    ################\n";
+	//std::cout << "##############  END    ################\n";
 	for (int i = 0, j = 0; i < N; i++)
 	{
 		deCodeword[i] = EstimatedWord[PATH][i];
@@ -117,8 +164,6 @@ Polar_decoder::decode_SC()
 	}
 	free_data_struct_of_SCL(L, log2N, N);
 }
-
-//----------------------------- compute LLR & BAT --------------------------------------
 void
 Polar_decoder::update_BAT(uint cur_phase, uint path)
 {
@@ -194,9 +239,6 @@ Polar_decoder::compute_channel_llr(double *_y_in, uint _length, double *_z_out)
 	for (int i = 0; i < _length; i++)
 		_z_out[i] = 2*_y_in[i]/sigma2;
 }
-
-
-//------------------------- Basic compute function  ----------------------------
 double
 Polar_decoder::f_blue(double L1, double L2)
 {
@@ -231,8 +273,9 @@ Polar_decoder::g_red(double L1, double L2, BOOL u)
 
 //--------------------------  data_struct  ----------------------------------
 void
-Polar_decoder::init_data_struct_of_SCL(uint L, uint M, uint N)
+Polar_decoder::init_data_struct_of_SCL(uint L)
 {
+	uint M = log2N;
 	//***********************  fixed  ***************************************
 	// NodeType -- N*(M+1)
 	NodeType = (char **) malloc ( N * sizeof(char*) ); SPACE_WARNING(NodeType);
@@ -301,25 +344,26 @@ Polar_decoder::init_data_struct_of_SCL(uint L, uint M, uint N)
 	}
 	//PathMetrics -- L
 	PathMetrics = (double *) malloc ( L*sizeof(double) ); SPACE_WARNING(PathMetrics);
-
 	//PathMetricsOfForks -- 2*L
 	PathMetricsOfForks = (double **) malloc ( 2 * sizeof(double*) ); SPACE_WARNING(PathMetricsOfForks);
 	for (int i = 0; i < 2; i++){
 		PathMetricsOfForks[i] = (double *) malloc ( L * sizeof(double) ); SPACE_WARNING(PathMetricsOfForks[i]);
 	}
-
 	//KeptDescendant -- 2*L
 	ForkActiveOrNot = (BOOL **) malloc ( 2 * sizeof(BOOL*) ); SPACE_WARNING(ForkActiveOrNot);
 	for (int i = 0; i < 2; i++){
 		ForkActiveOrNot[i] = (BOOL *) malloc ( L * sizeof(BOOL) ); SPACE_WARNING(ForkActiveOrNot[i]);
 	}
-
 	//ActivePath -- L
 	PathActiveOrNot = (BOOL *) malloc ( L*sizeof(BOOL) ); SPACE_WARNING(PathActiveOrNot);
+
+	//set initial value to struct
+	set_data_struct_of_SCL(L, log2N, N);
 }
 void
-Polar_decoder::free_data_struct_of_SCL(uint L, uint M, uint N)
+Polar_decoder::free_data_struct_of_SCL(uint L)
 {
+	uint M = log2N;
 	//**************  fixed  ***************************************
 	for (int i = 0; i < N; i++)
 		free(NodeType[i]);
@@ -360,10 +404,10 @@ Polar_decoder::free_data_struct_of_SCL(uint L, uint M, uint N)
 
 	free(PathActiveOrNot);
 }
-
 void
-Polar_decoder::set_data_struct_of_SCL(uint L, uint M, uint N)
+Polar_decoder::set_data_struct_of_SCL(uint L)
 {
+	uint M = log2N;
 	//**************  array  ***************************************
 	//BAT & LLR -- L*(M+1)*(LayerBlockLen[])
 	for (int path = 0; path < L; path++){
@@ -417,10 +461,10 @@ Polar_decoder::set_data_struct_of_SCL(uint L, uint M, uint N)
 		PathInactive.push(path);
 	}
 }
-
 void
-Polar_decoder::show_fixed_struct_of_SCL(uint L, uint M, uint N)
+Polar_decoder::show_fixed_struct_of_SCL(uint L)
 {
+	uint M = log2N;
 	// lambda & NodeType
 	std::cout << "net struct\n";
 	for (int i = 0; i < N; i++){
@@ -440,8 +484,9 @@ Polar_decoder::show_fixed_struct_of_SCL(uint L, uint M, uint N)
 	std::cout << std::endl;
 }
 void
-Polar_decoder::show_array_struct_of_SCL(uint L, uint M, uint N)
+Polar_decoder::show_array_struct_of_SCL(uint L)
 {	
+	uint M = log2N;
 	//BAT
 	std::cout << "\n###BAT\n";
 	for (int path = 0; path < L; path++){
@@ -492,8 +537,9 @@ Polar_decoder::show_array_struct_of_SCL(uint L, uint M, uint N)
 	}
 }
 void
-Polar_decoder::show_code_struct_of_SCL(uint L, uint M, uint N, uint _cur_phase)
+Polar_decoder::show_code_struct_of_SCL(uint L, uint _cur_phase)
 {
+	uint M = log2N;
 	std::cout << "\n###EstWord\n";
 	for (int path = 0; path < L; path++){
 		std::cout << path << "\t";
@@ -536,10 +582,10 @@ Polar_decoder::show_code_struct_of_SCL(uint L, uint M, uint N, uint _cur_phase)
 	}
 }
 void
-Polar_decoder::show_data_struct_of_SCL(uint L, uint M, uint N, uint _phase)
+Polar_decoder::show_data_struct_of_SCL(uint L, uint _phase)
 {
-	show_fixed_struct_of_SCL(L,M,N);
-	show_array_struct_of_SCL(L,M,N);
-	show_code_struct_of_SCL(L, M,N,_phase);
+	show_fixed_struct_of_SCL(L);
+	show_array_struct_of_SCL(L);
+	show_code_struct_of_SCL(L,_phase);
 }
 
