@@ -61,25 +61,26 @@ void
 Polar_decoder::decode_SCL(uint _L)
 {
 	std::cout << "##############  INIT       ################\n";
+
 	init_data_struct_of_SCL(_L);
+	uint init_path = assignInitPath();
+
 	show_fixed_struct_of_SCL(_L);
 	std::cout << "##############  PROCESSING ################\n";
 
-	for (int cur_phase = 0; cur_phase < N; cur_phase++)
+	for (int global_phase = 0; global_phase < N; global_phase++)
 	{
-		// extend l paths in N phases
-		uint init_path = assignInitPath();
-		for (uint cur_phase = 0; cur_phase < N; cur_phase++) {
-			update_BAT(cur_phase, _L);
-			update_LLR(cur_phase, _L);
-			if (0 == pattern[cur_phase]) //frozen bitset
-				extendPath_FrozenBit(cur_phase, _L);
-			else
-				extendPath_UnfrozenBit(cur_phase, _L);
-		}
+		//compute llr of current global_phase
+		update_BAT_List(global_phase, _L);
+		update_LLR_List(global_phase, _L);
+
+		// extend  paths according to llr
+		if (0 == pattern[global_phase]) //frozen bit
+			extendPath_FrozenBit(global_phase, _L);
+		else							//info bit
+			extendPath_UnfrozenBit(global_phase, _L);
 
 		// find best codeword which passed CRC in the list
-
 
 
 		//show_data_struct_of_SCL(_L, log2N, N, cur_phase);
@@ -89,12 +90,78 @@ Polar_decoder::decode_SCL(uint _L)
 	std::cout << "##############  END        ################\n";
 }
 void
-Polar_decoder::update_List_BAT(uint cur_phase, uint _L)
+Polar_decoder::extendPath_UnfrozenBit(uint global_phase, uint _L)
 {
+
 }
 void
-Polar_decoder::update_List_LLR(uint cur_phase, uint _L)
+Polar_decoder::extendPath_FrozenBit(uint global_phase, uint _L)
 {
+	for (size_t path = 0; path < _L; path++){
+		if (TRUE == PathActiveOrNot[path])
+			EstimatedWord[path][global_phase] = 0;
+	}
+}
+void
+Polar_decoder::update_BAT_List(uint cur_phase, uint _L)
+{
+	uint layer_renewed = LayerRenewed[cur_phase];
+	uint block_len = LayerBlockLen[layer_renewed];
+	uint pos_start = cur_phase - block_len;
+
+	for (size_t path = 0; path < _L; path++)
+	{
+		if (TRUE == PathActiveOrNot[path])
+		{
+			uint array_ind_of_path_layer = PathIndexToArrayIndex[path][layer_renewed];
+			universal_encode(
+				&EstimatedWord[path][pos_start],
+				block_len,
+				BAT[array_ind_of_path_layer][layer_renewed]
+				);
+		}
+	}
+}
+void
+Polar_decoder::update_LLR_List(uint global_phase, uint _L)
+{
+	uint layer_start_renewed = LayerRenewed[global_phase];
+
+	for (size_t path = 0; path < _L; path++)
+	{
+		if (TRUE == PathActiveOrNot[path])		//for each active path
+		{
+			for (size_t cur_layer = layer_start_renewed; 
+					    cur_layer < log2N + 1; 
+						cur_layer++) {			//for each layer of the active path
+				uint arr_ind_of_path_layer = PathIndexToArrayIndex[path][cur_layer];
+				for (size_t cur_phase = 0; 
+							cur_phase < LayerBlockLen[cur_layer]; 
+							cur_phase++) {		//for each phase of the current layer of current active path
+					switch (cur_layer)
+					{
+					case 0:						//when in layer 0
+						compute_channel_llr(
+							recCodeword.data(),
+							N,
+							LLR[arr_ind_of_path_layer][cur_layer]
+							);
+						break;
+					default:					//when in layer>0
+						uint arr_ind_of_path_prelayer = PathIndexToArrayIndex[path][cur_layer-1];
+						compute_inner_llr(
+							LLR[arr_ind_of_path_prelayer][cur_layer - 1],
+							LayerBlockLen[cur_layer],
+							LLR[arr_ind_of_path_layer][cur_layer],
+							NodeType[global_phase][cur_layer],
+							BAT[arr_ind_of_path_layer][cur_layer]
+							);
+						break;
+					}
+				}
+			}
+		}
+	}
 
 }
 uint
@@ -120,16 +187,16 @@ Polar_decoder::assignInitPath()
 
 
 //----------------------------- SC --------------------------------------
-void
+/*void
 Polar_decoder::decode_SC()
 {
 	uint PATH = 0;
 	uint L = 1;
 
-	init_data_struct_of_SCL(L, log2N, N);
+	init_data_struct_of_SCL(L);
 
 	//std::cout << "##############  INIT       ################\n";
-	//show_fixed_struct_of_SCL(L, log2N, N);
+	//show_fixed_struct_of_SCL(L);
 	//std::cout << "##############  PROCESSING ################\n";
 
 	for (int cur_phase = 0; cur_phase < N; cur_phase++)
@@ -162,18 +229,17 @@ Polar_decoder::decode_SC()
 		if (1 == pattern[i])
 			deInfoBit[j++] = deCodeword[i];
 	}
-	free_data_struct_of_SCL(L, log2N, N);
+	free_data_struct_of_SCL(L);
 }
 void
-Polar_decoder::update_BAT(uint cur_phase, uint path)
+Polar_decoder::update_BAT(uint global_phase, uint path)
 {
 	//[path=0][LayerRenewed[cur_phase]][*]
-	if (cur_phase <= 0)
-		return;
-
-	uint layer_renewed = LayerRenewed[cur_phase];
+//	if (cur_phase <= 0)
+//		return;
+	uint layer_renewed = LayerRenewed[global_phase];
 	uint block_len = LayerBlockLen[layer_renewed];
-	uint pos_start = cur_phase - block_len;
+	uint pos_start = global_phase - block_len;
 
 	universal_encode(
 		&EstimatedWord[path][pos_start], 
@@ -182,61 +248,63 @@ Polar_decoder::update_BAT(uint cur_phase, uint path)
 	);
 }
 void
-Polar_decoder::update_LLR(uint cur_phase, uint path)
+Polar_decoder::update_LLR(uint global_phase, uint path)
 {
 	//update LLR[path=0][LayerRenewed[cur_phase]:M][*]
-	uint layer_start_renewed = LayerRenewed[cur_phase];
+	uint layer_start_renewed = LayerRenewed[global_phase];
 
-	for (int layer = layer_start_renewed; layer < log2N+1; layer++){
-		for (int phase = 0; phase < LayerBlockLen[layer]; phase++){
-			switch (layer){
+	for (int cur_layer = layer_start_renewed; cur_layer < log2N+1; cur_layer++){
+			switch (cur_layer)
+			{
 			case 0:
 				compute_channel_llr(
-					recCodeword.data(), N, 
-					LLR[PathIndexToArrayIndex[path][layer]][layer]
+					recCodeword.data(),
+					N,
+					LLR[PathIndexToArrayIndex[path][cur_layer]][cur_layer]
 				);
 				break;
 			default:
-				compute_inner_llr(LLR, path, layer, cur_phase);
+				compute_inner_llr(
+					LLR[path][cur_layer - 1],
+					LayerBlockLen[cur_layer],
+					LLR[path][cur_layer],
+					NodeType[global_phase][cur_layer],
+					BAT[path][cur_layer]
+					);
 				break;
 			}
-		}
+		
 	}
 }
+*/
 void
-Polar_decoder::compute_inner_llr(double ***LLR, uint _path, uint _layer, uint _global_phase)
+Polar_decoder::compute_inner_llr(double *_llr_in, uint _length, double *_llr_out, char _node_type, BOOL *_bat_arr)
 {
-	if (_layer == 0)
-		return;
-
-	uint block_len = LayerBlockLen[_layer];
-	for (int phase = 0; phase < block_len; phase++)
+	switch (_node_type)
 	{
-		double L1 = LLR[PathIndexToArrayIndex[_path][_layer-1]][_layer-1][phase];
-		double L2 = LLR[PathIndexToArrayIndex[_path][_layer-1]][_layer-1][phase + block_len];
-		uint u = BAT[PathIndexToArrayIndex[_path][_layer]][_layer][phase];
-
-		switch (NodeType[_global_phase][_layer])
-		{
-		case 'f':
-			LLR[PathIndexToArrayIndex[_path][_layer]][_layer][phase] = f_blue(L1, L2);
-			break;
-		case 'g':
-			LLR[PathIndexToArrayIndex[_path][_layer]][_layer][phase] = g_red(L1, L2, u);
-			break;
-		default:
-			std::cout << "Node Type WRONG! in layer:" << _layer << ", phase:" << phase;
-			std::exit(0);
-			break;
-		}
+	case 'f':
+		for (int phase = 0; phase < _length; phase++)
+			_llr_out[phase] = f_blue(
+				_llr_in[phase], 
+				_llr_in[phase + _length]);
+		break;
+	case 'g':
+		for (int phase = 0; phase < _length; phase++)
+			_llr_out[phase] = g_red (
+				_llr_in[phase], 
+				_llr_in[phase + _length], 
+				_bat_arr[phase]);
+		break;
+	default:
+		std::cout << "Node Type WRONG!\n";
+		std::exit(EXIT_FAILURE);
+		break;
 	}
 }
 void
 Polar_decoder::compute_channel_llr(double *_y_in, uint _length, double *_z_out)
 {
-	if (0 == _length)
-		return;
-	for (int i = 0; i < _length; i++)
+	for (int i = 0; i <	N; i++)
 		_z_out[i] = 2*_y_in[i]/sigma2;
 }
 double
@@ -358,7 +426,7 @@ Polar_decoder::init_data_struct_of_SCL(uint L)
 	PathActiveOrNot = (BOOL *) malloc ( L*sizeof(BOOL) ); SPACE_WARNING(PathActiveOrNot);
 
 	//set initial value to struct
-	set_data_struct_of_SCL(L, log2N, N);
+	set_data_struct_of_SCL(L);
 }
 void
 Polar_decoder::free_data_struct_of_SCL(uint L)
