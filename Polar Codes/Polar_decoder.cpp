@@ -41,7 +41,7 @@ void
 Polar_decoder::Decode(std::string _method, uint _L, uint _CRC_r)
 {
 	if (_method == "SC")
-		decode_SC();
+		decode_SCL(1);
 	else if (_method == "SCL")
 		decode_SCL(_L);
 	else if (_method == "CASCL")
@@ -98,8 +98,15 @@ void
 Polar_decoder::extendPath_FrozenBit(uint global_phase, uint _L)
 {
 	for (size_t path = 0; path < _L; path++){
-		if (TRUE == PathActiveOrNot[path])
+		if (TRUE == PathActiveOrNot[path]) {
+			//extend Path
 			EstimatedWord[path][global_phase] = 0;
+			double llr_of_path_in_cur_phase = LLR[PathIndexToArrayIndex[path][log2N]][log2N][0];
+			//update Path Metric
+			if (llr_of_path_in_cur_phase < 0){
+				PathMetrics[path] += abs(llr_of_path_in_cur_phase);
+			}
+		}
 	}
 }
 void
