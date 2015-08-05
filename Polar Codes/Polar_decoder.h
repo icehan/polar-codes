@@ -27,7 +27,7 @@ private:
 	void update_BAT_List(uint global_phase, uint _L);
 	void update_LLR_List(uint global_phase, uint _L);
 	uint assignInitPath();
-	uint clonePath(uint path_ind_cloned);
+	uint clonePath(uint path_ind_cloned, uint global_phase);
 	void killPath(uint path_ind_killed);
 
 	//---------------- data struct of SCL ----------------------------------
