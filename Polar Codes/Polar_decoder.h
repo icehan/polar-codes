@@ -21,13 +21,13 @@ private:
 
 	//---------------- functions of SCL ------------------------------------
 	void decode_SCL(uint _search_width);
-	void extendPath_UnfrozenBit(uint cur_phase, uint _L);
-	void extendPath_FrozenBit(uint cur_phase, uint _L);
+	void extendPath_UnfrozenBit(uint global_phase, uint _L);
+	void extendPath_FrozenBit(uint global_phase, uint _L);
 	uint clonePath(uint path_ind_cloned);
 	void killPath(uint path_ind_killed);
 
-	void update_List_BAT(uint cur_phase, uint _L);
-	void update_List_LLR(uint cur_phase, uint _L);
+	void update_BAT_List(uint global_phase, uint _L);
+	void update_LLR_List(uint global_phase, uint _L);
 	uint assignInitPath();
 
 	//---------------- data struct of SCL ----------------------------------
@@ -40,11 +40,11 @@ private:
 	void show_code_struct_of_SCL(uint _L, uint _cur_phase);
 
 	//---------------- SC ---------------------------------------------------
-	void decode_SC();
-	void update_BAT(uint cur_phase, uint path);
-	void update_LLR(uint cur_phase, uint path);
-	void compute_channel_llr(double *_y_in, uint _length, double *_z_out);	// layer = 0
-	void compute_inner_llr(double ***LLR, uint _path, uint _layer, uint _global_phase);	// layer > 0
+//	void decode_SC();
+//	void update_BAT(uint global_phase, uint path);
+//	void update_LLR(uint global_phase, uint path);
+	void compute_channel_llr(double *_y_in, uint _length, double *_z_out);	// layer = 0, _length = N
+	void compute_inner_llr(double *_llr_in, uint _length, double *_llr_out, char _node_type, BOOL *_bat_arr);	// layer > 0
 	double f_blue(double L1, double L2);
 	double g_red(double L1, double L2, BOOL u);
 
