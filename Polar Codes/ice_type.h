@@ -3,16 +3,15 @@
 
 #include<string>
 
-typedef struct path_metric_fork {
+typedef unsigned int uint;
+typedef unsigned char uchar;
+typedef unsigned int BOOL;
+typedef struct st_path_metric_fork {
 	uint path;
-	uint u_bit;
+	BOOL u_bit;
 	double metric;
 }St_PMF;
 
-typedef unsigned int uint;
-typedef unsigned char uchar;
-
-typedef unsigned int BOOL;
 #define TRUE 1
 #define FALSE 0
 #define INF -999
