@@ -92,20 +92,94 @@ Polar_decoder::decode_SCL(uint _L)
 void
 Polar_decoder::extendPath_UnfrozenBit(uint global_phase, uint _L)
 {
+	uint active_path_cnt = 0;
 
+	//populate PathMetricsOfForks
+	for (uint path = 0; path < _L; path++)
+	{
+		if (TRUE == PathActiveOrNot[path])
+		{
+			//get llr of bit in cur phase of this path
+			double llr = LLR[PathIndexToArrayIndex[path][log2N]][log2N][0];
+			//PathMetricsOfForks
+			if (llr < 0) {
+				PathMetricsOfForks[path].u_bit = 0;
+				PathMetricsOfForks[path].path = path;
+				PathMetricsOfForks[path].metric = PathMetrics[path] + abs(llr);
+				PathMetricsOfForks[path + _L].u_bit = 1;
+				PathMetricsOfForks[path + _L].path = path;
+				PathMetricsOfForks[path + _L].metric = PathMetrics[path];
+			}
+			else {
+				PathMetricsOfForks[path].u_bit = 0;
+				PathMetricsOfForks[path].path = path;
+				PathMetricsOfForks[path].metric = PathMetrics[path];
+				PathMetricsOfForks[path + _L].u_bit = 1;
+				PathMetricsOfForks[path + _L].path = path;
+				PathMetricsOfForks[path + _L].metric = PathMetrics[path] + abs(llr);
+			}
+			active_path_cnt++;
+		}
+		else {
+			PathMetricsOfForks[path].u_bit = 0;
+			PathMetricsOfForks[path + _L].u_bit = 1;
+			PathMetricsOfForks[path].path = path;
+			PathMetricsOfForks[path + _L].path = path;
+			PathMetricsOfForks[path].metric = INF;
+			PathMetricsOfForks[path + _L].metric = INF;
+		}
+	}
+
+	//select p largest forks, p = min(active_path_cnt*2, _L)
+	qsort(PathMetricsOfForks, _L, sizeof(St_PMF), comparePM);
+	uint p = std::min(_L, 2 * active_path_cnt);
+
+	//populate ForkActiveOrNot, max p forks is active
+	for (uint i = 0; i < 2*_L; i++)
+	{
+		uint u = PathMetricsOfForks[i].u_bit;
+		uint path = PathMetricsOfForks[i].path;
+		ForkActiveOrNot[u][path] = (i < p ? TRUE : FALSE);
+	}
+
+	//populate PathActiveOrNot
+	//kill path whose forks both inactive
+	for (uint path = 0; path < _L; path++){
+		PathActiveOrNot[path] = ForkActiveOrNot[0][path] | ForkActiveOrNot[1][path];
+		FALSE == PathActiveOrNot[path] ? killPath(path) : 0;
+	}
+	
+	//continue other paths and dup if necessary
+	for (uint path = 0; path < _L; path++)
+	{
+		if (FALSE == PathActiveOrNot[path])
+			continue; 	//killed
+		else if (TRUE == ForkActiveOrNot[0][path] & ForkActiveOrNot[1][path]) {
+			//both active
+
+		}else if (TRUE == ForkActiveOrNot[0][path]) {
+			//fork 0 active
+			EstimatedWord[path][global_phase] = 0;
+//			PathMetrics[path] = 
+		}else{
+			//fork 1 acitve
+			EstimatedWord[path][global_phase] = 1;
+//			PathMetrics[path] =
+		}
+	}
 }
 void
 Polar_decoder::extendPath_FrozenBit(uint global_phase, uint _L)
 {
-	for (size_t path = 0; path < _L; path++){
+	double llr = 0;
+	for (uint path = 0; path < _L; path++){
 		if (TRUE == PathActiveOrNot[path]) {
+			//get llr of bit in cur phase of this path
+			llr = LLR[PathIndexToArrayIndex[path][log2N]][log2N][0];
+			//update Path Metric
+			llr < 0 ? PathMetrics[path] += abs(llr) : 0;
 			//extend Path
 			EstimatedWord[path][global_phase] = 0;
-			double llr_of_path_in_cur_phase = LLR[PathIndexToArrayIndex[path][log2N]][log2N][0];
-			//update Path Metric
-			if (llr_of_path_in_cur_phase < 0){
-				PathMetrics[path] += abs(llr_of_path_in_cur_phase);
-			}
 		}
 	}
 }
@@ -115,12 +189,13 @@ Polar_decoder::update_BAT_List(uint cur_phase, uint _L)
 	uint layer_renewed = LayerRenewed[cur_phase];
 	uint block_len = LayerBlockLen[layer_renewed];
 	uint pos_start = cur_phase - block_len;
+	uint array_ind_of_path_layer = 0;
 
-	for (size_t path = 0; path < _L; path++)
+	for (uint path = 0; path < _L; path++)
 	{
 		if (TRUE == PathActiveOrNot[path])
 		{
-			uint array_ind_of_path_layer = PathIndexToArrayIndex[path][layer_renewed];
+			array_ind_of_path_layer = PathIndexToArrayIndex[path][layer_renewed];
 			universal_encode(
 				&EstimatedWord[path][pos_start],
 				block_len,
@@ -133,16 +208,18 @@ void
 Polar_decoder::update_LLR_List(uint global_phase, uint _L)
 {
 	uint layer_start_renewed = LayerRenewed[global_phase];
+	uint arr_ind_of_path_layer = 0;
+	uint arr_ind_of_path_prelayer = 0;
 
-	for (size_t path = 0; path < _L; path++)
+	for (uint path = 0; path < _L; path++)
 	{
 		if (TRUE == PathActiveOrNot[path])		//for each active path
 		{
-			for (size_t cur_layer = layer_start_renewed; 
+			for (uint cur_layer = layer_start_renewed;
 					    cur_layer < log2N + 1; 
 						cur_layer++) {			//for each layer of the active path
-				uint arr_ind_of_path_layer = PathIndexToArrayIndex[path][cur_layer];
-				for (size_t cur_phase = 0; 
+				arr_ind_of_path_layer = PathIndexToArrayIndex[path][cur_layer];
+				for (uint cur_phase = 0;
 							cur_phase < LayerBlockLen[cur_layer]; 
 							cur_phase++) {		//for each phase of the current layer of current active path
 					switch (cur_layer)
@@ -155,7 +232,7 @@ Polar_decoder::update_LLR_List(uint global_phase, uint _L)
 							);
 						break;
 					default:					//when in layer>0
-						uint arr_ind_of_path_prelayer = PathIndexToArrayIndex[path][cur_layer-1];
+						arr_ind_of_path_prelayer = PathIndexToArrayIndex[path][cur_layer-1];
 						compute_inner_llr(
 							LLR[arr_ind_of_path_prelayer][cur_layer - 1],
 							LayerBlockLen[cur_layer],
@@ -171,6 +248,18 @@ Polar_decoder::update_LLR_List(uint global_phase, uint _L)
 	}
 
 }
+void
+Polar_decoder::killPath(uint path_ind_killed)
+{
+	PathActiveOrNot[path_ind_killed] = FALSE;
+	PathInactive.push(path_ind_killed);
+	for (uint layer = 0; layer < log2N + 1; layer++) {
+		uint array_ind = PathIndexToArrayIndex[path_ind_killed][layer];
+		if (--ArrayReferenceCount[path_ind_killed][layer]) {
+			ArrayInactive[layer].push(array_ind);
+		}
+	}
+}
 uint
 Polar_decoder::assignInitPath()
 {
@@ -182,7 +271,7 @@ Polar_decoder::assignInitPath()
 					 PathInactive.pop();
 
 	PathActiveOrNot[init_path] = TRUE;
-	for (size_t layer = 0; layer < log2N+1; layer++)
+	for (uint layer = 0; layer < log2N+1; layer++)
 	{
 		uint s = ArrayInactive[layer].top();
 		PathIndexToArrayIndex[init_path][layer] = s;
@@ -344,6 +433,13 @@ Polar_decoder::g_red(double L1, double L2, BOOL u)
 {
 	return  u ? L2 - L1 : L2 + L1;
 }
+int 
+comparePM(const void* pm1, const void* pm2)
+{
+	St_PMF *p1 = (St_PMF *)pm1, 
+		   *p2 = (St_PMF *)pm2;
+	return p1->metric - p2->metric;	//descending order
+}
 
 
 //--------------------------  data_struct  ----------------------------------
@@ -420,10 +516,7 @@ Polar_decoder::init_data_struct_of_SCL(uint L)
 	//PathMetrics -- L
 	PathMetrics = (double *) malloc ( L*sizeof(double) ); SPACE_WARNING(PathMetrics);
 	//PathMetricsOfForks -- 2*L
-	PathMetricsOfForks = (double **) malloc ( 2 * sizeof(double*) ); SPACE_WARNING(PathMetricsOfForks);
-	for (int i = 0; i < 2; i++){
-		PathMetricsOfForks[i] = (double *) malloc ( L * sizeof(double) ); SPACE_WARNING(PathMetricsOfForks[i]);
-	}
+	PathMetricsOfForks = (St_PMF*) malloc ( 2*L*sizeof(St_PMF) ); SPACE_WARNING(PathMetricsOfForks);
 	//KeptDescendant -- 2*L
 	ForkActiveOrNot = (BOOL **) malloc ( 2 * sizeof(BOOL*) ); SPACE_WARNING(ForkActiveOrNot);
 	for (int i = 0; i < 2; i++){
@@ -470,9 +563,7 @@ Polar_decoder::free_data_struct_of_SCL(uint L)
 		free(EstimatedWord[i]);
 	free(EstimatedWord);
 	free(PathMetrics);
-	for (int i = 0; i < 2; i++){
-		free(PathMetricsOfForks[i]);		
-	} free(PathMetricsOfForks);
+	free(PathMetricsOfForks);
 	for (int i = 0; i < 2; i++)	{
 		free(ForkActiveOrNot[i]);
 	} free(ForkActiveOrNot);
@@ -515,15 +606,19 @@ Polar_decoder::set_data_struct_of_SCL(uint L)
 
 	//***************  code  ***************************************
 	//PathMetrics
-	for (int path = 0; path < L; path++){
+	for (int path = 0; path < L; path++)
 		PathMetrics[path] = 0;
-	}
 	//PathMetricsOfForks -- 2*L
-	for (int i = 0; i < 2; i++){
-		for (int path = 0; path < L; path++){
-			PathMetricsOfForks[i][path] = 0;
+	for (uint u = 0; u < 2; u++){
+		for (uint path = 0; path < L; path++)
+		{
+			uint ind = u*L + path;
+			PathMetricsOfForks[ind].u_bit = u;
+			PathMetricsOfForks[ind].path = path;
+			PathMetricsOfForks[ind].metric = 0;
 		}
 	}
+
 	//KeptDescendant -- 2*L
 	for (int i = 0; i < 2; i++){
 		for (int path = 0; path < L; path++){
@@ -629,9 +724,10 @@ Polar_decoder::show_code_struct_of_SCL(uint L, uint _cur_phase)
 		std::cout << PathMetrics[path] << "\t";
 	}
 	std::cout << "\n###PM_Forks\n";
-	for (int i = 0; i < 2; i++){
-		for (int path = 0; path < L; path++){
-			std::cout << PathMetricsOfForks[i][path] << "\t";
+	for (uint u = 0; u < 2; u++){
+		for (uint path = 0; path < L; path++){
+			uint ind = u*L + path;
+			std::cout << PathMetricsOfForks[ind].metric << "\t";
 		} std::cout << "\n";
 	}
 	std::cout << "\n###Fork Active OrNot\n";
