@@ -130,6 +130,12 @@ Polar_decoder::extendPath_UnfrozenBit(uint global_phase, uint _L)
 		}
 	}
 
+	//copy PathMetricsOfForks
+	St_PMF *copy_of_PMF = (St_PMF *)malloc(2 * _L*sizeof(St_PMF));
+	for (size_t i = 0; i < 2*_L; i++){
+		copy_of_PMF[i] = PathMetricsOfForks[i];
+	}
+
 	//select p largest forks, p = min(active_path_cnt*2, _L)
 	qsort(PathMetricsOfForks, _L, sizeof(St_PMF), comparePM);
 	uint p = std::min(_L, 2 * active_path_cnt);
@@ -152,19 +158,26 @@ Polar_decoder::extendPath_UnfrozenBit(uint global_phase, uint _L)
 	//continue other paths and dup if necessary
 	for (uint path = 0; path < _L; path++)
 	{
-		if (FALSE == PathActiveOrNot[path])
-			continue; 	//killed
-		else if (TRUE == ForkActiveOrNot[0][path] & ForkActiveOrNot[1][path]) {
-			//both active
-
-		}else if (TRUE == ForkActiveOrNot[0][path]) {
-			//fork 0 active
+		if (FALSE == PathActiveOrNot[path])//killed
+			continue; 	
+		else if (TRUE == ForkActiveOrNot[0][path] & ForkActiveOrNot[1][path]) {	//both active
+			//copy path struct
+			uint path_copy = clonePath(path, global_phase);
+			//copy word 
+			for (uint i = 0; i < global_phase; i++){
+				EstimatedWord[path_copy][i] = EstimatedWord[path][i];
+			}
+			//extend word & populate path metrics
 			EstimatedWord[path][global_phase] = 0;
-//			PathMetrics[path] = 
-		}else{
-			//fork 1 acitve
+			PathMetrics[path] = copy_of_PMF[path].metric;
+			EstimatedWord[path_copy][global_phase] = 1;
+			PathMetrics[path_copy] = copy_of_PMF[path + _L].metric;
+		}else if (TRUE == ForkActiveOrNot[0][path]) {	//fork 0 active
+			EstimatedWord[path][global_phase] = 0;
+			PathMetrics[path] = copy_of_PMF[path].metric;
+		}else{	//fork 1 acitve
 			EstimatedWord[path][global_phase] = 1;
-//			PathMetrics[path] =
+			PathMetrics[path] = copy_of_PMF[path + _L].metric;
 		}
 	}
 }
@@ -248,15 +261,48 @@ Polar_decoder::update_LLR_List(uint global_phase, uint _L)
 	}
 
 }
+uint
+Polar_decoder::clonePath(uint _path_cloned, uint global_phase)
+{
+	//first, get a inactive path index from PathInactive.
+	//Then, set this path ind to TRUE. reps. convert to active
+	uint _path_copy = PathInactive.top(); PathInactive.pop();
+	PathActiveOrNot[_path_copy] = TRUE;
+
+	//as for arr struct.
+	//first, get the renewed layer p in next globla phase.
+	//then, for 0£ºp - 1, two path simple share the array, 
+	//we just point the same array & modify cnt arr +1.
+	uint _arr_copy_from_layer = LayerRenewed[global_phase + 1];
+	for (uint layer = 0; layer < _arr_copy_from_layer; layer++) {
+		uint arr_ind_of_cloned = PathIndexToArrayIndex[_path_cloned][layer];
+		PathIndexToArrayIndex[_path_copy][layer] = arr_ind_of_cloned;
+		ArrayReferenceCount[arr_ind_of_cloned][layer]++;
+	}
+	//but,  for p:log2N+1, each path have their own array.
+	//so, we should point diff array & set cnt to 1 
+	for (uint layer = _arr_copy_from_layer; layer < log2N + 1; layer++){
+		uint arr_ind = ArrayInactive[layer].top(); ArrayInactive[layer].pop();
+		PathIndexToArrayIndex[_path_copy][layer] = arr_ind;
+		ArrayReferenceCount[arr_ind][layer] = 1;
+	}
+
+	//in the end, return the index of the copy of that path being cloned.
+	return _path_copy;
+	//so, we can safely update the arrary in the next global phase, and don't
+	//worry about conflict. the most important is that we avoid copy of arr of
+	//diff paths which shared the same arr. this is the so called 'lazy copy'.
+}
 void
 Polar_decoder::killPath(uint path_ind_killed)
 {
 	PathActiveOrNot[path_ind_killed] = FALSE;
 	PathInactive.push(path_ind_killed);
 	for (uint layer = 0; layer < log2N + 1; layer++) {
-		uint array_ind = PathIndexToArrayIndex[path_ind_killed][layer];
-		if (--ArrayReferenceCount[path_ind_killed][layer]) {
-			ArrayInactive[layer].push(array_ind);
+		uint arr_ind = PathIndexToArrayIndex[path_ind_killed][layer];
+		uint cnt = --ArrayReferenceCount[path_ind_killed][layer];
+		if (0 == cnt) {
+			ArrayInactive[layer].push(arr_ind);
 		}
 	}
 }
@@ -759,4 +805,3 @@ Polar_decoder::show_data_struct_of_SCL(uint L, uint _phase)
 	show_array_struct_of_SCL(L);
 	show_code_struct_of_SCL(L,_phase);
 }
-
