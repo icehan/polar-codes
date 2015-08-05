@@ -23,12 +23,12 @@ private:
 	void decode_SCL(uint _search_width);
 	void extendPath_UnfrozenBit(uint global_phase, uint _L);
 	void extendPath_FrozenBit(uint global_phase, uint _L);
-	uint clonePath(uint path_ind_cloned);
-	void killPath(uint path_ind_killed);
 
 	void update_BAT_List(uint global_phase, uint _L);
 	void update_LLR_List(uint global_phase, uint _L);
 	uint assignInitPath();
+	uint clonePath(uint path_ind_cloned);
+	void killPath(uint path_ind_killed);
 
 	//---------------- data struct of SCL ----------------------------------
 	void init_data_struct_of_SCL(uint _L);
@@ -47,6 +47,7 @@ private:
 	void compute_inner_llr(double *_llr_in, uint _length, double *_llr_out, char _node_type, BOOL *_bat_arr);	// layer > 0
 	double f_blue(double L1, double L2);
 	double g_red(double L1, double L2, BOOL u);
+	friend int comparePM(const void* pm1, const void* pm2);	// descending order
 
 public:
 	double sigma2;
@@ -68,7 +69,7 @@ private:
 
 	//***************  code  ***************************************
 	uint **EstimatedWord;			//L*N mat of estimated codeword
-	double **PathMetricsOfForks;	//2*L array of extended PM
+	St_PMF *PathMetricsOfForks;	//2*L array of extended PM
 	double *PathMetrics;			//L array of PM
 	BOOL **ForkActiveOrNot;			//2*L array of bool, keep or not
 	BOOL *PathActiveOrNot;			//L array
