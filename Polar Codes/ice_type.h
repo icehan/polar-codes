@@ -3,6 +3,12 @@
 
 #include<string>
 
+typedef struct path_metric_fork {
+	uint path;
+	uint u_bit;
+	double metric;
+}St_PMF;
+
 typedef unsigned int uint;
 typedef unsigned char uchar;
 
