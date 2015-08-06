@@ -11,6 +11,10 @@ typedef struct st_path_metric_fork {
 	BOOL u_bit;
 	double metric;
 }St_PMF;
+typedef struct st_path_metric {
+	uint path;
+	uint metric;
+}St_PM;
 
 #define TRUE 1
 #define FALSE 0
