@@ -60,37 +60,137 @@ Polar_decoder::decode_CASCL(uint _L, uint _CRC_r){}
 void
 Polar_decoder::decode_SCL(uint _L)
 {
-	std::cout << "##############  INIT       ################\n";
+std::cout << "##############  INIT       ################\n";
 
+	//init
 	init_data_struct_of_SCL(_L);
-	uint init_path = assignInitPath();
+	assignInitPath();
+//	show_fixed_struct_of_SCL(_L);
+std::cout << "##############  PROCESSING ################\n";
 
-	show_fixed_struct_of_SCL(_L);
-	std::cout << "##############  PROCESSING ################\n";
-
+	//extend word
 	for (int global_phase = 0; global_phase < N; global_phase++)
 	{
+		std::cout << "\n---------------------Global: " << global_phase << "  ------------------\n";
 		//compute llr of current global_phase
 		update_BAT_List(global_phase, _L);
 		update_LLR_List(global_phase, _L);
-
 		// extend  paths according to llr
 		if (0 == pattern[global_phase]) //frozen bit
 			extendPath_FrozenBit(global_phase, _L);
 		else							//info bit
+		{
+			std::cout << "unfrozen bit+++++++++++++++++++++++++++++\n";
 			extendPath_UnfrozenBit(global_phase, _L);
-
-		// find best codeword which passed CRC in the list
-
-
-		//show_data_struct_of_SCL(_L, log2N, N, cur_phase);
+		}
+		/**/
+//		show_array_struct_of_SCL(_L);
+//		show_code_struct_of_SCL(_L, global_phase);
 	}
 
-	free_data_struct_of_SCL(_L);
+	// find best codeword which passed CRC in the list
+//	find_best_word_passingCRC(_L);
 	std::cout << "##############  END        ################\n";
+
+	free_data_struct_of_SCL(_L);
+}
+uint
+Polar_decoder::find_best_word_passingCRC(uint _L)
+{
+	St_PM *pm = (St_PM*)malloc(_L*sizeof(St_PM));
+
+	for (uint i = 0; i < _L; i++){
+		pm[i].path = i;
+		pm[i].metric = PathMetrics[i];
+	}
+	qsort(pm, _L, sizeof(St_PM), compare_finalPM);
+
+	uint best_path = -1;
+	for (uint i = 0; i < _L; i++){
+		uint path = pm[i].path;
+	}
+	
+
+	free(pm);
+	return 0;
+}
+void
+Polar_decoder::extendPath_FrozenBit(uint global_phase, uint _L)
+{
+	double llr = 0;
+	for (uint path = 0; path < _L; path++) {
+		if (TRUE == PathActiveOrNot[path]) {
+			//get llr of bit in cur phase of this path
+			llr = LLR[PathIndexToArrayIndex[path][log2N]][log2N][0];
+			//update Path Metric
+			llr < 0 ? PathMetrics[path] += abs(llr) : 0;
+			//extend Path
+			EstimatedWord[path][global_phase] = 0;
+		}
+	}
 }
 void
 Polar_decoder::extendPath_UnfrozenBit(uint global_phase, uint _L)
+{
+std::cout << "1\n";
+	populate_PathMetricsOfForks_ForkActiveOrNot(_L);
+std::cout << "2\n";
+	populate_PathAcitveOrNot_KillInactive(_L);
+std::cout << "3\n";
+	//continue other paths and dup if necessary
+	for (uint path = 0; path < _L; path++)
+	{
+		//both killed
+		if (FALSE == PathActiveOrNot[path])
+			continue; 	
+		//both active
+		else if (TRUE == ForkActiveOrNot[0][path] & ForkActiveOrNot[1][path]) 
+		{	
+			//copy path struct
+			uint path_copy = clonePath(path, global_phase);
+			//copy word 
+			for (uint i = 0; i < global_phase; i++){
+				EstimatedWord[path_copy][i] = EstimatedWord[path][i];
+			}
+			//extend word & populate path metrics
+			EstimatedWord[path][global_phase] = 0;
+			PathMetrics[path] = copy_of_PMF[path].metric;
+			EstimatedWord[path_copy][global_phase] = 1;
+			PathMetrics[path_copy] = copy_of_PMF[path + _L].metric;
+		//fork 0 active
+		}else if (TRUE == ForkActiveOrNot[0][path]) 
+		{	
+			EstimatedWord[path][global_phase] = 0;
+			PathMetrics[path] = copy_of_PMF[path].metric;
+		//fork 1 acitve
+		}else
+		{
+			EstimatedWord[path][global_phase] = 1;
+			PathMetrics[path] = copy_of_PMF[path + _L].metric;
+		}
+	}
+}
+void
+Polar_decoder::populate_PathAcitveOrNot_KillInactive(uint _L)
+{
+	//populate PathActiveOrNot
+	//kill path whose forks both inactive
+	for (uint path = 0; path < _L; path++) {
+		BOOL was_active = PathActiveOrNot[path];
+		std::cout << "path=" << path << ": " <<was_active << ", ";
+		BOOL will_active = ForkActiveOrNot[0][path] | ForkActiveOrNot[1][path];
+		std::cout << "fork: " << ForkActiveOrNot[0][path] << ForkActiveOrNot[1][path] << "\n";
+		if ((TRUE == was_active) &&
+			(FALSE == will_active))
+		{
+			std::cout << "in kill\n";
+			killPath(path);
+		}
+		PathActiveOrNot[path] = will_active;
+	}
+}
+void
+Polar_decoder::populate_PathMetricsOfForks_ForkActiveOrNot(uint _L)
 {
 	uint active_path_cnt = 0;
 
@@ -131,8 +231,7 @@ Polar_decoder::extendPath_UnfrozenBit(uint global_phase, uint _L)
 	}
 
 	//copy PathMetricsOfForks
-	St_PMF *copy_of_PMF = (St_PMF *)malloc(2 * _L*sizeof(St_PMF));
-	for (size_t i = 0; i < 2*_L; i++){
+	for (size_t i = 0; i < 2 * _L; i++) {
 		copy_of_PMF[i] = PathMetricsOfForks[i];
 	}
 
@@ -141,59 +240,11 @@ Polar_decoder::extendPath_UnfrozenBit(uint global_phase, uint _L)
 	uint p = std::min(_L, 2 * active_path_cnt);
 
 	//populate ForkActiveOrNot, max p forks is active
-	for (uint i = 0; i < 2*_L; i++)
+	for (uint i = 0; i < 2 * _L; i++)
 	{
 		uint u = PathMetricsOfForks[i].u_bit;
 		uint path = PathMetricsOfForks[i].path;
 		ForkActiveOrNot[u][path] = (i < p ? TRUE : FALSE);
-	}
-
-	//populate PathActiveOrNot
-	//kill path whose forks both inactive
-	for (uint path = 0; path < _L; path++){
-		PathActiveOrNot[path] = ForkActiveOrNot[0][path] | ForkActiveOrNot[1][path];
-		FALSE == PathActiveOrNot[path] ? killPath(path) : 0;
-	}
-	
-	//continue other paths and dup if necessary
-	for (uint path = 0; path < _L; path++)
-	{
-		if (FALSE == PathActiveOrNot[path])//killed
-			continue; 	
-		else if (TRUE == ForkActiveOrNot[0][path] & ForkActiveOrNot[1][path]) {	//both active
-			//copy path struct
-			uint path_copy = clonePath(path, global_phase);
-			//copy word 
-			for (uint i = 0; i < global_phase; i++){
-				EstimatedWord[path_copy][i] = EstimatedWord[path][i];
-			}
-			//extend word & populate path metrics
-			EstimatedWord[path][global_phase] = 0;
-			PathMetrics[path] = copy_of_PMF[path].metric;
-			EstimatedWord[path_copy][global_phase] = 1;
-			PathMetrics[path_copy] = copy_of_PMF[path + _L].metric;
-		}else if (TRUE == ForkActiveOrNot[0][path]) {	//fork 0 active
-			EstimatedWord[path][global_phase] = 0;
-			PathMetrics[path] = copy_of_PMF[path].metric;
-		}else{	//fork 1 acitve
-			EstimatedWord[path][global_phase] = 1;
-			PathMetrics[path] = copy_of_PMF[path + _L].metric;
-		}
-	}
-}
-void
-Polar_decoder::extendPath_FrozenBit(uint global_phase, uint _L)
-{
-	double llr = 0;
-	for (uint path = 0; path < _L; path++){
-		if (TRUE == PathActiveOrNot[path]) {
-			//get llr of bit in cur phase of this path
-			llr = LLR[PathIndexToArrayIndex[path][log2N]][log2N][0];
-			//update Path Metric
-			llr < 0 ? PathMetrics[path] += abs(llr) : 0;
-			//extend Path
-			EstimatedWord[path][global_phase] = 0;
-		}
 	}
 }
 void
@@ -268,6 +319,8 @@ Polar_decoder::clonePath(uint _path_cloned, uint global_phase)
 	//Then, set this path ind to TRUE. reps. convert to active
 	uint _path_copy = PathInactive.top(); PathInactive.pop();
 	PathActiveOrNot[_path_copy] = TRUE;
+	if (N - 1 == global_phase)
+		return _path_copy;
 
 	//as for arr struct.
 	//first, get the renewed layer p in next globla phase.
@@ -277,7 +330,7 @@ Polar_decoder::clonePath(uint _path_cloned, uint global_phase)
 	for (uint layer = 0; layer < _arr_copy_from_layer; layer++) {
 		uint arr_ind_of_cloned = PathIndexToArrayIndex[_path_cloned][layer];
 		PathIndexToArrayIndex[_path_copy][layer] = arr_ind_of_cloned;
-		ArrayReferenceCount[arr_ind_of_cloned][layer]++;
+		ArrayReferenceCount[_path_cloned][layer]++;
 	}
 	//but,  for p:log2N+1, each path have their own array.
 	//so, we should point diff array & set cnt to 1 
@@ -294,17 +347,18 @@ Polar_decoder::clonePath(uint _path_cloned, uint global_phase)
 	//diff paths which shared the same arr. this is the so called 'lazy copy'.
 }
 void
-Polar_decoder::killPath(uint path_ind_killed)
+Polar_decoder::killPath(uint l_killed)
 {
-	PathActiveOrNot[path_ind_killed] = FALSE;
-	PathInactive.push(path_ind_killed);
+	PathActiveOrNot[l_killed] = FALSE;
+	PathInactive.push(l_killed);
 	for (uint layer = 0; layer < log2N + 1; layer++) {
-		uint arr_ind = PathIndexToArrayIndex[path_ind_killed][layer];
-		uint cnt = --ArrayReferenceCount[path_ind_killed][layer];
-		if (0 == cnt) {
-			ArrayInactive[layer].push(arr_ind);
+		uint s = PathIndexToArrayIndex[l_killed][layer];
+		uint t = --ArrayReferenceCount[s][layer];
+		if (0 == t) {
+			ArrayInactive[layer].push(s);
 		}
 	}
+std::cout << "killPathEND\n";
 }
 uint
 Polar_decoder::assignInitPath()
@@ -319,9 +373,10 @@ Polar_decoder::assignInitPath()
 	PathActiveOrNot[init_path] = TRUE;
 	for (uint layer = 0; layer < log2N+1; layer++)
 	{
-		uint s = ArrayInactive[layer].top();
+		uint s = ArrayInactive[layer].top(); 
+				 ArrayInactive[layer].pop();
 		PathIndexToArrayIndex[init_path][layer] = s;
-		ArrayReferenceCount[init_path][s] = 1;
+		ArrayReferenceCount[s][layer] = 1;
 	}
 
 	return init_path;
@@ -486,6 +541,13 @@ comparePM(const void* pm1, const void* pm2)
 		   *p2 = (St_PMF *)pm2;
 	return p1->metric - p2->metric;	//descending order
 }
+int
+compare_finalPM(const void* pm1, const void* pm2)
+{
+	St_PM *p1 = (St_PM *)pm1,
+		*p2 = (St_PM *)pm2;
+	return p2->metric - p1->metric;	//increasing order
+}
 
 
 //--------------------------  data_struct  ----------------------------------
@@ -563,6 +625,7 @@ Polar_decoder::init_data_struct_of_SCL(uint L)
 	PathMetrics = (double *) malloc ( L*sizeof(double) ); SPACE_WARNING(PathMetrics);
 	//PathMetricsOfForks -- 2*L
 	PathMetricsOfForks = (St_PMF*) malloc ( 2*L*sizeof(St_PMF) ); SPACE_WARNING(PathMetricsOfForks);
+	copy_of_PMF =		 (St_PMF*) malloc ( 2*L*sizeof(St_PMF)); SPACE_WARNING(copy_of_PMF);
 	//KeptDescendant -- 2*L
 	ForkActiveOrNot = (BOOL **) malloc ( 2 * sizeof(BOOL*) ); SPACE_WARNING(ForkActiveOrNot);
 	for (int i = 0; i < 2; i++){
@@ -610,6 +673,7 @@ Polar_decoder::free_data_struct_of_SCL(uint L)
 	free(EstimatedWord);
 	free(PathMetrics);
 	free(PathMetricsOfForks);
+	free(copy_of_PMF);
 	for (int i = 0; i < 2; i++)	{
 		free(ForkActiveOrNot[i]);
 	} free(ForkActiveOrNot);
@@ -625,15 +689,15 @@ Polar_decoder::set_data_struct_of_SCL(uint L)
 	for (int path = 0; path < L; path++){
 		for (int layer = 0; layer < M+1; layer++){
 			for (int phase = 0; phase < LayerBlockLen[layer]; phase++){
-				LLR[path][layer][phase] = INF;
-				BAT[path][layer][phase] = -INF;
+				LLR[path][layer][phase] = 2;
+				BAT[path][layer][phase] = 2;
 			}
 		}
 	}
 	//PathIndexToArrayIndex -- L*(M+1)
 	for (int path = 0; path < L; path++){
 		for (int layer = 0; layer < M+1; layer++){
-			PathIndexToArrayIndex[path][layer] = INF;
+			PathIndexToArrayIndex[path][layer] = -1;
 		}
 	}
 	//ArrayReferenceCount -- L*(M+1)
@@ -706,21 +770,33 @@ Polar_decoder::show_array_struct_of_SCL(uint L)
 	//BAT
 	std::cout << "\n###BAT\n";
 	for (int path = 0; path < L; path++){
-		for (int layer = 0; layer < M+1; layer++){
-			for (int phase = 0; phase < LayerBlockLen[layer]; phase++){
-				std::cout << BAT[path][layer][phase] << " ";
-			} std::cout << "\n";
-		}std::cout << "\n";
+		if (TRUE == PathActiveOrNot[path])
+		{
+			std::cout << "Path = " << path << "\n";
+			for (int layer = 0; layer < M + 1; layer++)
+			{
+				uint arr_ind = PathIndexToArrayIndex[path][layer];
+				for (int phase = 0; phase < LayerBlockLen[layer]; phase++) {
+					std::cout << BAT[arr_ind][layer][phase] << " ";
+				} std::cout << "\n";
+			}std::cout << "\n";
+		}
 	}
 	//LLR
 	std::cout << "\n###LLR\n";
-	for (int path = 0; path < L; path++){
-		for (int layer = 0; layer < M+1; layer++){
-			for (int phase = 0; phase < LayerBlockLen[layer]; phase++){
-				std::cout << LLR[path][layer][phase] << " ";
-			} std::cout << "\n";
-		}std::cout << "\n";
-	}	
+	for (int path = 0; path < L; path++) {
+		if (TRUE == PathActiveOrNot[path])
+		{
+			std::cout << "Path = " << path << "\n";
+			for (int layer = 0; layer < M + 1; layer++)
+			{
+				uint arr_ind = PathIndexToArrayIndex[path][layer];
+				for (int phase = 0; phase < LayerBlockLen[layer]; phase++) {
+					std::cout << LLR[arr_ind][layer][phase] << " ";
+				} std::cout << "\n";
+			}std::cout << "\n";
+		}
+	}
 	//PathIndexToArrayIndex
 	std::cout << "\n###To\n";
 	for (int path = 0; path < L; path++){
@@ -741,13 +817,13 @@ Polar_decoder::show_array_struct_of_SCL(uint L)
 	for (int layer = 0; layer < M+1; layer++){
 		while (!ArrayInactive[layer].empty()){
 			uint top = ArrayInactive[layer].top();
-			ArrayInactive[layer].pop();
+					   ArrayInactive[layer].pop();
 			s_tmp.push(top);
 			std::cout << top << " ";
 		}std::cout << "\n";
 		while (!s_tmp.empty()){
 			uint top = s_tmp.top();
-			s_tmp.pop();
+					   s_tmp.pop();
 			ArrayInactive[layer].push(top);
 		}
 	}
