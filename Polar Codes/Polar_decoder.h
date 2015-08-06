@@ -21,9 +21,11 @@ private:
 
 	//---------------- functions of SCL ------------------------------------
 	void decode_SCL(uint _search_width);
+	uint find_best_word_passingCRC(uint _L);
 	void extendPath_UnfrozenBit(uint global_phase, uint _L);
 	void extendPath_FrozenBit(uint global_phase, uint _L);
-
+	void populate_PathAcitveOrNot_KillInactive(uint _L);
+	void populate_PathMetricsOfForks_ForkActiveOrNot(uint _L);
 	void update_BAT_List(uint global_phase, uint _L);
 	void update_LLR_List(uint global_phase, uint _L);
 	uint assignInitPath();
@@ -47,8 +49,8 @@ private:
 	void compute_inner_llr(double *_llr_in, uint _length, double *_llr_out, char _node_type, BOOL *_bat_arr);	// layer > 0
 	double f_blue(double L1, double L2);
 	double g_red(double L1, double L2, BOOL u);
-	friend int comparePM(const void* pm1, const void* pm2);	// descending order
-
+	friend int comparePM(const void* pm1, const void* pm2);			// descending order
+	friend int compare_finalPM(const void* pm1, const void* pm2);	// increasing order
 public:
 	double sigma2;
 	std::vector<double> recCodeword;	//after gaussin channel, received code
@@ -70,6 +72,7 @@ private:
 	//***************  code  ***************************************
 	uint **EstimatedWord;			//L*N mat of estimated codeword
 	St_PMF *PathMetricsOfForks;	//2*L array of extended PM
+	St_PMF *copy_of_PMF;
 	double *PathMetrics;			//L array of PM
 	BOOL **ForkActiveOrNot;			//2*L array of bool, keep or not
 	BOOL *PathActiveOrNot;			//L array
