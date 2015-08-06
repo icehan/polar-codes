@@ -44,7 +44,7 @@ int main()
 //	#pragma omp parallel for
 	for (int i = 0; i < 1; i++)
 	{
-		InfoSource src(4); // 2 4 128 512
+		InfoSource src(128); // 2 4 128 512
 
 		Polar_encoder polenc(src);
 		polenc.Encode();
@@ -56,7 +56,7 @@ int main()
 		chan.add_gauss();
 
 		Polar_decoder poldec(chan);//modu.infoOut);		//	//cout << i+1 << "th decoding...\n";
-		poldec.Decode("SCL", 3);
+		poldec.Decode("SCL", 4);
 	}
 	return 0;
 }
