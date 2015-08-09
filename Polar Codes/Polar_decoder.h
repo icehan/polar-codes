@@ -21,7 +21,7 @@ private:
 
 	//---------------- functions of SCL ------------------------------------
 	void decode_SCL(uint _search_width);
-	uint find_best_word_passingCRC(uint _L);
+	uint find_best_word(uint _L);
 	void extendPath_UnfrozenBit(uint global_phase, uint _L);
 	void extendPath_FrozenBit(uint global_phase, uint _L);
 	void populate_PathAcitveOrNot_KillInactive(uint _L);
@@ -49,13 +49,16 @@ private:
 	void compute_inner_llr(double *_llr_in, uint _length, double *_llr_out, char _node_type, BOOL *_bat_arr);	// layer > 0
 	double f_blue(double L1, double L2);
 	double g_red(double L1, double L2, BOOL u);
-	friend int comparePM(const void* pm1, const void* pm2);			// descending order
+	friend int comparePM(const void* pm1, const void* pm2);			// increasing order
 	friend int compare_finalPM(const void* pm1, const void* pm2);	// increasing order
+
+
 public:
 	double sigma2;
 	std::vector<double> recCodeword;	//after gaussin channel, received code
 	std::vector<uint> deCodeword;		//codeword decoded by algorithm using recCodeword
 	std::vector<uint> deInfoBit;
+	BOOL decode_correct;
 private:
 	//**************  fixed  ***************************************
 	char **NodeType;				//N*(M+1) mat of type of node, red/blue
