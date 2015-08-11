@@ -26,4 +26,10 @@ InfoSource::InfoSource(uint infoLength)
 
 	for (std::size_t i = 0; i < infoLength; ++i)
 		infoBits[i] = unif_dist(mt_gen);
+
+#ifdef DEBUG	
+	for (size_t i = 0; i < 10; i++)
+		infoBits[i] = 0;
+	infoBits[11] = infoBits[12] = infoBits[13] = 1;
+#endif
 }

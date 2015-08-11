@@ -15,7 +15,7 @@ public:
 	CRC();
 	~CRC();
 	void Encode();
-	bool IsCorrectCodeword();
+	bool IsCorrectCodeword(const std::vector<uint> &_cw, uint _r=24);
 
 public:
 	std::size_t K;

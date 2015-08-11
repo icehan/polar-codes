@@ -1,7 +1,9 @@
 #include"Polar_decoder.h"
 #include<iostream>
+#include<algorithm>
+#include<random>
 #include<cmath>
-#include<algorithm> 
+#include"CRC.h"
 
 //------------------------ Constructor & Destructor ------------------------------------
 Polar_decoder::Polar_decoder(const Channel &_chan, double _code_rate)
@@ -36,7 +38,6 @@ Polar_decoder::Polar_decoder(const std::vector<double> &_rec_codeword, double _c
 Polar_decoder::Polar_decoder() {}
 Polar_decoder::~Polar_decoder() {}
 
-//-------------------------Interface of several decoding algorithms ------------------------------
 void
 Polar_decoder::Decode(std::string _method, uint _L, uint _CRC_r)
 {
@@ -44,7 +45,7 @@ Polar_decoder::Decode(std::string _method, uint _L, uint _CRC_r)
 		decode_SCL(1);
 	else if (_method == "SCL")
 		decode_SCL(_L);
-	else if (_method == "CASCL")
+	else if (_method == "CA-SCL")
 		decode_CASCL(_L, _CRC_r);
 	else
 	{
@@ -54,45 +55,88 @@ Polar_decoder::Decode(std::string _method, uint _L, uint _CRC_r)
 }
 
 
-//------------------------- I'm working on CA-SCL -----------------
+//------------------------- CA-SCL -------------------------------
 void
 Polar_decoder::decode_CASCL(uint _L, uint _CRC_r) 
 {
-	//std::cout << "##############  INIT       ################\n";
-
 	//init
 	init_data_struct_of_SCL(_L);
 	assignInitPath();
+#ifdef DEBUG
+	//std::cout << "##############  INIT       ################\n";
 	//show_fixed_struct_of_SCL(_L);
 	//std::cout << "##############  PROCESSING ################\n";
-
+#endif
 	//extend word
 	for (int global_phase = 0; global_phase < N; global_phase++)
 	{
-		//std::cout << "\n---------------------Global: " << global_phase << "  ------------------\n";
+#ifdef DEBUG
+		std::cout << "\n---------------------Global: " << global_phase << "  ------------------\n";
+#endif
 		//compute llr of current global_phase
 		if (0 != global_phase)
 			update_BAT_List(global_phase, _L);
 		update_LLR_List(global_phase, _L);
+
 		// extend  paths according to llr
 		if (0 == pattern[global_phase])
 		{//frozen bit
 			extendPath_FrozenBit(global_phase, _L);
-		}
-		else
+		}else
 		{//info bit
-		 //std::cout << "info bit\n";
 			extendPath_UnfrozenBit(global_phase, _L);
+#ifdef DEBUG
+		std::cout << "info bit\n";
+		//show_array_struct_of_SCL(_L);
+		show_code_struct_of_SCL(_L, global_phase);
+#endif
 		}
-		//		show_array_struct_of_SCL(_L);
-		//		show_code_struct_of_SCL(_L, global_phase);
+	}
+	find_best_word_passing_CRC(_L);
+	free_data_struct_of_SCL(_L);
+#ifdef DEBUG
+	std::cout << (TRUE == decode_correct ? "true\n" : "false\n");
+	std::cout << "##############  END        ################\n";
+#endif
+}
+void
+Polar_decoder::find_best_word_passing_CRC(uint _L)
+{
+	//rewrite pms
+	std::vector<St_PM> pms(_L);
+	for (size_t i = 0; i < _L; i++){
+		pms[i].path = i;
+		pms[i].metric = PathMetrics[i];
 	}
 
-	// find best de-codeword
-	find_best_word(_L);
-	//	std::cout << "##############  END        ################\n";
-	free_data_struct_of_SCL(_L);
+	//sort, increasing order
+	qsort(pms.data(), _L, sizeof(St_PM), comparePM);
+
+	//find the best
+	decode_correct = FALSE;
+	for (size_t path = 0; path < _L; path++)
+	{
+		//get K0 + 24
+		for (size_t i = 0, j = 0; i < N; i++){
+			if (1 == pattern[i])
+				deInfoBit[j++] = EstimatedWord[pms[path].path][i];
+		}
+
+#ifdef DEBUG
+		std::cout << "path: " << pms[path].path << ", metric: " << pms[path].metric << "\n";
+		for (size_t i = 0; i < K; i++)
+			std::cout << deInfoBit[i] << " ";
+		std::cout << std::endl;
+#endif
+		//check if K0 is right 
+		CRC crc(K-24);
+		if (crc.IsCorrectCodeword(deInfoBit)){
+			decode_correct = TRUE;
+			break;
+		}
+	}
 }
+
 
 //------------------------- SCL -----------------------------------
 void
@@ -132,7 +176,7 @@ Polar_decoder::decode_SCL(uint _L)
 //	std::cout << "##############  END        ################\n";
 	free_data_struct_of_SCL(_L);
 }
-uint
+void
 Polar_decoder::find_best_word(uint _L)
 {
 	uint best_path = 0;
@@ -146,12 +190,18 @@ Polar_decoder::find_best_word(uint _L)
 	}
 
 	for (size_t i = 0, j = 0; i < N; i++){
-		if (0 == pattern[i]) {
+		if (1 == pattern[i]) {
 			deInfoBit[j++] = EstimatedWord[best_path][i];
 		}
 	}
-	
-	return 0;
+
+#ifdef DEBUG
+for (size_t i = 0; i < K; i++) {
+	std::cout << deInfoBit[i] << " ";
+}std::cout << std::endl;
+#endif
+
+	decode_correct = TRUE;
 }
 
 void
@@ -173,8 +223,9 @@ void
 Polar_decoder::extendPath_UnfrozenBit(uint global_phase, uint _L)
 {
 	populate_PathMetricsOfForks_ForkActiveOrNot(_L);
+
+#ifdef DEBUG
 /*
-//-------------------------------------------
 	for (size_t i = 0; i < 2 * _L; i++)
 	{
 		std::cout << copy_of_PMF[i].u_bit << " " << copy_of_PMF[i].path << " " << copy_of_PMF[i].metric << " | ";
@@ -193,8 +244,9 @@ Polar_decoder::extendPath_UnfrozenBit(uint global_phase, uint _L)
 			std::cout << ForkActiveOrNot[i][path] << "\t";
 		} std::cout << "\n";
 	}
-//-----------------------------------------------
 */
+#endif
+
 	populate_PathAcitveOrNot_KillInactive(_L);
 	
 	//continue other paths and dup if necessary
@@ -224,13 +276,14 @@ Polar_decoder::extendPath_UnfrozenBit(uint global_phase, uint _L)
 		}
 	}
 
-/*	//-----------------------------------------------------
+#ifdef DEBUG
+/*
 	std::cout << "\n###PM\n";
 	for (int path = 0; path < _L; path++) {
 		std::cout << PathMetrics[path] << "\t";
 	}
-	//-----------------------------------------------------
 */
+#endif
 }
 void
 Polar_decoder::populate_PathAcitveOrNot_KillInactive(uint _L)
@@ -283,7 +336,7 @@ Polar_decoder::populate_PathMetricsOfForks_ForkActiveOrNot(uint _L)
 	}
 
 	//select p largest forks, p = min(active_path_cnt*2, _L)
-	qsort(copy_of_PMF, 2 * _L, sizeof(St_PMF), comparePM);//2L pmfs
+	qsort(copy_of_PMF, 2 * _L, sizeof(St_PMF), comparePMF);//2L pmfs
 	uint p = std::min(_L, 2 * active_path_cnt);
 
 	//populate ForkActiveOrNot, max p forks is active
@@ -428,7 +481,7 @@ Polar_decoder::killPath(uint l_killed)
 		}
 	}
 }
-uint
+void
 Polar_decoder::assignInitPath()
 {
 //	if (PathInactive.empty()){
@@ -513,18 +566,43 @@ Polar_decoder::g_red(double L1, double L2, BOOL u)
 	return  u ? L2 - L1 : L2 + L1;
 }
 int 
-comparePM(const void* pm1, const void* pm2)
+comparePMF(const void* pmf1, const void* pmf2)
 {
-	St_PMF *p1 = (St_PMF *)pm1, 
-		   *p2 = (St_PMF *)pm2;
-	return p1->metric - p2->metric <= 0 ? 0 : 1;	//increasing order
+	St_PMF *p1 = (St_PMF *)pmf1,
+		*p2 = (St_PMF *)pmf2;
+
+	if ( abs(p1->metric - p2->metric)<1e-6 ) {
+		std::random_device rd;
+		std::mt19937 mt_gen(rd());
+		std::uniform_int_distribution<uint> unif_dist(0, 1);
+		auto t = unif_dist(mt_gen);
+		std::cout << "**************" << t << "*********\n";
+		return 	t ? 1 : 0;
+	}else if (p1->metric < p2->metric)
+		return 0;
+	else {
+		return 1;
+	} 
 }
 int
-compare_finalPM(const void* pm1, const void* pm2)
+comparePM(const void* pm1, const void* pm2)
 {
 	St_PM *p1 = (St_PM *)pm1,
 		*p2 = (St_PM *)pm2;
-	return p1->metric - p2->metric <= 0 ? 0 : 1;	//increasing order
+
+	if (abs(p1->metric - p2->metric)<1e-6) {
+		std::random_device rd;
+		std::mt19937 mt_gen(rd());
+		std::uniform_int_distribution<uint> unif_dist(0, 1);
+		auto t = unif_dist(mt_gen);
+		std::cout << "**************" << t << "*********\n";
+		return 	t ? 1 : 0;
+	}
+	else if (p1->metric < p2->metric)
+		return 0;
+	else {
+		return 1;
+	}
 }
 
 
@@ -821,15 +899,15 @@ Polar_decoder::show_code_struct_of_SCL(uint L, uint _cur_phase)
 {
 	uint M = log2N;
 	std::cout << "\n###EstWord\n";
-	for (int path = 0; path < L; path++){
-		std::cout << path << "\t";
-	} std::cout << "\n";
-	for (int phase = 0; phase <= _cur_phase; phase++){
-		for (int path = 0; path < L; path++){
-			std::cout << EstimatedWord[path][phase] << "\t";
-		} std::cout << "\n";
+	for (int path = 0; path < L; path++) {
+		std::cout << path << ": \n";
+		for (int phase = 0; phase <= _cur_phase; phase++) {
+			if (pattern[phase] == 1)
+			std::cout << EstimatedWord[path][phase] << " ";
+		}std::cout << "\n";
 	}
-/*	std::cout << "\n###PM_Forks\n";
+
+	std::cout << "\n###PM_Forks\n";
 	for (uint u = 0; u < 2; u++){
 		for (uint path = 0; path < L; path++){
 			uint ind = u*L + path;
@@ -842,7 +920,7 @@ Polar_decoder::show_code_struct_of_SCL(uint L, uint _cur_phase)
 			std::cout << ForkActiveOrNot[i][path] << "\t";
 		} std::cout << "\n";
 	}
-*/	
+	
 	std::cout << "\n###PM\n";
 	for (int path = 0; path < L; path++) {
 		std::cout << PathMetrics[path] << "\t";

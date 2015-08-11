@@ -15,22 +15,32 @@ public:
 	Polar_decoder();
 	~Polar_decoder();
 	void Decode(std::string _method, uint _search_width = 1, uint _CRC_para_r = 24); // _method = SC, SCL, CA-SCL
+
 private:
-	//----------------Interface of several decoding algorithms -------------
+	//---------------- CRC-aided SCL  -----------------------------------
 	void decode_CASCL(uint _search_width = 1, uint _CRC_para_r = 24);
+	void find_best_word_passing_CRC(uint _L);
 
 	//---------------- functions of SCL ------------------------------------
 	void decode_SCL(uint _search_width);
-	uint find_best_word(uint _L);
+	void find_best_word(uint _L);
 	void extendPath_UnfrozenBit(uint global_phase, uint _L);
 	void extendPath_FrozenBit(uint global_phase, uint _L);
 	void populate_PathAcitveOrNot_KillInactive(uint _L);
 	void populate_PathMetricsOfForks_ForkActiveOrNot(uint _L);
 	void update_BAT_List(uint global_phase, uint _L);
 	void update_LLR_List(uint global_phase, uint _L);
-	uint assignInitPath();
+	void assignInitPath();
 	uint clonePath(uint path_ind_cloned, uint global_phase);
 	void killPath(uint path_ind_killed);
+
+	//---------------- Basic function ---------------------------------------
+	void compute_channel_llr(double *_y_in, uint _length, double *_z_out);	// layer = 0, _length = N
+	void compute_inner_llr(double *_llr_in, uint _length, double *_llr_out, char _node_type, BOOL *_bat_arr);	// layer > 0
+	double f_blue(double L1, double L2);
+	double g_red(double L1, double L2, BOOL u);
+	friend int comparePMF(const void* pmf1, const void* pmf2);			// increasing order
+	friend int comparePM(const void* pm1, const void* pm2);
 
 	//---------------- data struct of SCL ----------------------------------
 	void init_data_struct_of_SCL(uint _L);
@@ -40,18 +50,6 @@ private:
 	void show_fixed_struct_of_SCL(uint _L);
 	void show_array_struct_of_SCL(uint _L);
 	void show_code_struct_of_SCL(uint _L, uint _cur_phase);
-
-	//---------------- SC ---------------------------------------------------
-//	void decode_SC();
-//	void update_BAT(uint global_phase, uint path);
-//	void update_LLR(uint global_phase, uint path);
-	void compute_channel_llr(double *_y_in, uint _length, double *_z_out);	// layer = 0, _length = N
-	void compute_inner_llr(double *_llr_in, uint _length, double *_llr_out, char _node_type, BOOL *_bat_arr);	// layer > 0
-	double f_blue(double L1, double L2);
-	double g_red(double L1, double L2, BOOL u);
-	friend int comparePM(const void* pm1, const void* pm2);			// increasing order
-	friend int compare_finalPM(const void* pm1, const void* pm2);	// increasing order
-
 
 public:
 	double sigma2;

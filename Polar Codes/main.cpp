@@ -41,45 +41,33 @@ int main()
 
 int main()
 {
-//	#pragma omp parallel for
+	#pragma omp parallel for
 	for (int i = 0; i < 1; i++)
 	{
-		InfoSource src(128); // 2 4 128 512
+		cout << i << "\n";
+		InfoSource src(128 - 24); // 2 4 128 512
 
-		Polar_encoder polenc(src);
-		polenc.Encode();
+		CRC crc(src);
+		crc.Encode();
+
+		Polar_encoder polenc(crc.codeword);
+		polenc.Encode(); 
 
 		Modulation modu(polenc.codeword);
 		modu.bpsk();
 
-		Channel chan(modu.infoOut, 0, 0.5);
-		chan.add_gauss();
+//		Channel chan(modu.infoOut, 0, 0.05);
+//		chan.add_gauss();
 
-		Polar_decoder poldec(chan);//modu.infoOut);		//	//cout << i+1 << "th decoding...\n";
-		poldec.Decode("SCL", 4);
+		Polar_decoder poldec(modu.infoOut);
+		poldec.Decode("CA-SCL", 4);
+
+#ifdef DEBUG
+		cout << "info + crc:\n";
+		for (size_t i = 0; i < crc.N; i++)
+			cout << crc.codeword[i] << " ";
+		cout << endl;
+#endif	
 	}
 	return 0;
 }
-
-/* test data
-		double y[] = {-1.1, -0.5, -1.6, 1.2};
-		for (int i = 0; i < 4; i++)
-			chan.infoOut[i] = y[i];
-
-		int j = 0;
-		for (int i = 0; i < poldec.N; i++)
-		{
-			if (i < src.infoLen)
-			{
-				cout << src.infoBits[i] << "\t" << polenc.infoBitsAddPattern[i] << "\t" << polenc.codeword[i] << "\t" 
-					<< poldec.recCodeword[i] << "\t" << poldec.deCodeword[i] << "\n";
-			}else
-			{
-				cout << "*" << "\t" << polenc.infoBitsAddPattern[i] << "\t"  << polenc.codeword[i] << "\t" 
-					<< poldec.recCodeword[i] << "\t" << poldec.deCodeword[i] << "\n";
-			}
-			if(polenc.infoBitsAddPattern[i] != poldec.deCodeword[i])
-				j++;
-		}
-		cout << j << endl;
-*/

@@ -13,7 +13,7 @@ typedef struct st_path_metric_fork {
 }St_PMF;
 typedef struct st_path_metric {
 	uint path;
-	uint metric;
+	double metric;
 }St_PM;
 
 #define TRUE 1
@@ -28,6 +28,7 @@ typedef struct st_path_metric {
 	 }
 //#define ADD_CRC
 //#define LJQ_COM
+#define DEBUG
 
 
 std::string int2str(const uint &double_temp);

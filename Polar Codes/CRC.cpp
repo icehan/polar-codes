@@ -52,18 +52,23 @@ CRC::Encode(void)
 }
 
 bool
-CRC::IsCorrectCodeword(void)
+CRC::IsCorrectCodeword(const std::vector<uint> &_cw, uint _r)
 {
-	std::vector<uint> info(codeword.size()-R);
+	if (_cw.size() <= _r){
+		std::cout << "code word length is wrong in CRC!\n";
+		std::exit(EXIT_FAILURE);
+	}
 
+	std::vector<uint> info(_cw.size() - _r);
 	for (std::size_t i = 0; i < info.size(); i++)
-		info[i] = codeword[i];
-	std::vector<uint> new_codeword = really_encode(info);
+		info[i] = _cw[i];
 
+	std::vector<uint> new_codeword = really_encode(info);
 	for (std::size_t i = info.size(); i < info.size()+R; i++)
-		if (new_codeword[i] != codeword[i])
+		if (new_codeword[i] != _cw[i])
 			return false;
 	return true;
+
 }
 
 CRC::CRC(const std::vector<uint> &bits, uint r, std::string gen_ploy, bool is_codeword)
@@ -107,5 +112,7 @@ CRC::CRC(uint k, std::string gen_ploy, uint r)
 	genPloy = gen_ploy;
 	set_gen();
 }
+
+CRC::CRC(){}
 
 CRC::~CRC() {}
