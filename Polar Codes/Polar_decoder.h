@@ -17,24 +17,26 @@ public:
 	void Decode(std::string _method, uint _search_width = 1, uint _CRC_para_r = 24); // _method = SC, SCL, CA-SCL
 
 private:
-	//---------------- CRC-aided SCL  -----------------------------------
+	//------------------------- CA-SCL & SCL -------------------------------
 	void decode_CASCL(uint _search_width = 1, uint _CRC_para_r = 24);
 	void find_best_word_passing_CRC(uint _L);
-
-	//---------------- functions of SCL ------------------------------------
 	void decode_SCL(uint _search_width);
 	void find_best_word(uint _L);
-	void extendPath_UnfrozenBit(uint global_phase, uint _L);
-	void extendPath_FrozenBit(uint global_phase, uint _L);
-	void populate_PathAcitveOrNot_KillInactive(uint _L);
-	void populate_PathMetricsOfForks_ForkActiveOrNot(uint _L);
+
+	//------------------------ High Level function --------------------------
 	void update_BAT_List(uint global_phase, uint _L);
 	void update_LLR_List(uint global_phase, uint _L);
-	void assignInitPath();
-	uint clonePath(uint path_ind_cloned, uint global_phase);
-	void killPath(uint path_ind_killed);
+	void extendPath_UnfrozenBit(uint global_phase, uint _L);
+	void extendPath_FrozenBit(uint global_phase, uint _L);
 
-	//---------------- Basic function ---------------------------------------
+	//------------------------ Middle level function -------------------------
+	void populate_PathAcitveOrNot_KillInactive(uint _L);
+	void populate_PathMetricsOfForks_ForkActiveOrNot(uint _L);
+	void assignInitPath();
+	void killPath(uint path_ind_killed);
+	uint clonePath(uint path_ind_cloned, uint global_phase);
+
+	//----------------------- Basic function ---------------------------------
 	void compute_channel_llr(double *_y_in, uint _length, double *_z_out);	// layer = 0, _length = N
 	void compute_inner_llr(double *_llr_in, uint _length, double *_llr_out, char _node_type, BOOL *_bat_arr);	// layer > 0
 	double f_blue(double L1, double L2);
@@ -42,7 +44,7 @@ private:
 	friend int comparePMF(const void* pmf1, const void* pmf2);			// increasing order
 	friend int comparePM(const void* pm1, const void* pm2);
 
-	//---------------- data struct of SCL ----------------------------------
+	//----------------------- data struct of SCL ------------------------------
 	void init_data_struct_of_SCL(uint _L);
 	void set_data_struct_of_SCL(uint _L);
 	void free_data_struct_of_SCL(uint _L);
@@ -53,10 +55,10 @@ private:
 
 public:
 	double sigma2;
+	BOOL decode_correct;
 	std::vector<double> recCodeword;	//after gaussin channel, received code
 	std::vector<uint> deCodeword;		//codeword decoded by algorithm using recCodeword
 	std::vector<uint> deInfoBit;
-	BOOL decode_correct;
 private:
 	//**************  fixed  ***************************************
 	char **NodeType;				//N*(M+1) mat of type of node, red/blue

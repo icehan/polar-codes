@@ -16,8 +16,8 @@
 #else
 
 #include<engine.h>
-void plot_curve(const std::string &_method, const double _ebno[], const long double _BER[], const long double _FER[], 
-							const uint _code_len, const uint _snr_cnt)
+void plot_curve(const St_CodeInfo& _st_code_info, const uint _snr_cnt,
+				const double _ebno[], const long double _FER[])
 {
 	/*
 	*	title('Í¼ÐÎÃû³Æ');
@@ -34,7 +34,7 @@ void plot_curve(const std::string &_method, const double _ebno[], const long dou
 	std::string ylabel = "ylabel('FER');";
 	std::string plot = "semilogy(x, y, 'r-');";
 	std::string legend = "legend('Polar "; 
-	legend += (_method + ", N = " + int2str(_code_len) + "');");
+	legend += (_st_code_info.method_of_decoding + ", N = " + int2str(_st_code_info.code_len) + "');");
 
 	std::string x_data = "x = [";
 	std::string y_data = "y = [";
@@ -50,7 +50,7 @@ void plot_curve(const std::string &_method, const double _ebno[], const long dou
 	Engine* EnginePt;
 	EnginePt = engOpen(NULL);
 	if( EnginePt==NULL ) { 
-		fprintf(stderr,"engine not found!\n");
+		fprintf(stderr,"Engine not found!\n");
 		exit(-1);
 	}
 	engEvalString(EnginePt, xlabel.c_str());
@@ -65,18 +65,21 @@ void plot_curve(const std::string &_method, const double _ebno[], const long dou
 }
 #endif
 
-void save_simulation_result(const std::string &_method, const double _ebno[], const long double _BER[], const long double _FER[], 
-							const uint _Counts_Of_Each_Ebno[], const uint _code_len, const uint _snr_cnt, const time_t &_start, const time_t &_end)
+void save_simulation_result(const St_CodeInfo& _st_code_info, const uint _snr_cnt,
+							const uint _Counts_Of_Each_Ebno[],
+							const double _ebno[], const long double _FER[],
+							const time_t &_start, const time_t &_end)
 {
 	std::string cur_time = ice_cur_time();
-	std::string name_of_output_file = "D:/Simulation Result/Polar_Res__" + cur_time + "__" +  _method + "_" + int2str(_code_len) + ".txt";
+	std::string name_of_output_file = "D:/Simulation Result/Polar_Res__" + cur_time + "__" 
+										+  _st_code_info.method_of_decoding + "_" 
+										+ int2str(_st_code_info.code_len) + ".txt";
 	std::ofstream out_file(name_of_output_file);
 
 	save_run_time(out_file, _start, _end);
-	out_file << "Eb/N0\t\tBER\t\tFER\t\tCounts\n";
+	out_file << "Eb/N0\t\tFER\t\tCounts\n";
 	for (int i = 0; i < _snr_cnt; i++)
 		out_file << _ebno[i] << "\t\t" 
-		<< std::setprecision(6)  << _BER[i] << "\t\t" 
 		<< std::setprecision(6) << _FER[i] << "\t\t" 
 		<< _Counts_Of_Each_Ebno[i] << "\n";
 
@@ -100,16 +103,16 @@ void save_run_time(std::ofstream& fname, const time_t &_start, const time_t &_en
 	fname << "----------------------------------------\n";
 }
 
-void run_in_a_ebno(const std::string &_method, uint _code_len, double _ebno, uint _counts, long double &__FER, long double &__BER)
+void run_in_a_ebno(const St_CodeInfo& _st_code_info, const uint _counts,
+					const double _ebno, long double &__FER)
 {
 
 #ifdef ADD_CRC
-	double sigma2 = 1.0 * pow(10.0, -_ebno/10) * (_code_len-48)/_code_len;
+	double sigma2 = 1.0 * pow(10.0, -_ebno/10) * (_st_code_info.code_len-48)/ _st_code_info.code_len;
 #else
 	double sigma2 = 1.0 * pow(10.0, -_ebno/10);
 #endif
 
-	long long counts_of_bit_err = 0;
 	long long counts_of_word_err = 0;
 
 	//loop for specified Eb/N0
@@ -117,40 +120,36 @@ void run_in_a_ebno(const std::string &_method, uint _code_len, double _ebno, uin
 	#pragma omp parallel for
 	for(int j = 0; j < _counts; ++j)
 	{
-		long long cur_round_bit_err = run_a_codeword(_method, _code_len, sigma2);
-		if( cur_round_bit_err ){
-			counts_of_bit_err  += cur_round_bit_err;
+		if ( FALSE == run_a_codeword(_st_code_info, sigma2) )
 			++counts_of_word_err;
-		}
 
 		if(!(j%100))
 		{
 			std::cout << "Eb/N0 = " << _ebno
 					  << ", the " << j+1
-					  << "th.\t | BER = " << 1.0*counts_of_bit_err/(_code_len*_counts) 
 					  << " FER = " << 1.0*counts_of_word_err/_counts
 					  << ".\n";
 		}
 	}
-	__BER = 1.0*counts_of_bit_err/(_code_len*_counts);
 	__FER = 1.0*counts_of_word_err/_counts;
 
-	std::cout << "Eb/N0 = " << _ebno << "\tBER = " << __BER << "\tFER = "  << __FER << std::endl;
+	std::cout << "Eb/N0 = " << _ebno << "\tFER = "  << __FER << std::endl;
 }
 
-uint run_a_codeword(const std::string &_method, uint _code_len, double _sigma2)
+BOOL run_a_codeword(const St_CodeInfo& _st_code_info, const double _sigma2)
 {
 #ifdef ADD_CRC
-	InfoSource src(_code_len/2 - 24); 
+	InfoSource src(_st_code_info.code_len/2 - 24); 
+	
 	CRC crc(src);
 	crc.Encode();
+
 	Polar_encoder polenc(crc.codeword);
-	polenc.Encode();
 #else 
-	InfoSource src(_code_len/2); 
-	Polar_encoder polenc(src);
-	polenc.Encode();
+	InfoSource src(_st_code_info.code_len /2);
+	Polar_encoder polenc(src.infoBits);
 #endif
+	polenc.Encode();
 
 	Modulation modu(polenc.codeword);
 	modu.bpsk();
@@ -159,19 +158,7 @@ uint run_a_codeword(const std::string &_method, uint _code_len, double _sigma2)
 	chan.add_gauss();
 
 	Polar_decoder poldec(chan);
-	poldec.Decode(_method);
+//	poldec.Decode(_st_code_info.method_of_decoding, _st_code_info.search_width);
 
-	uint bit_err_num = 0;
-#ifdef ADD_CRC
-	uint LEN = poldec.K - 24;
-#else
-	uint LEN = poldec.K;
-#endif
-	for (int i = 0; i < LEN; i++)
-	{
-		if (polenc.infoBits[i] != poldec.deInfoBit[i])
-			++bit_err_num;
-	}
-
-	return bit_err_num;
+	return poldec.decode_correct;
 }

@@ -5,20 +5,19 @@
 #include<time.h>
 
 //multi-thread version
-void run_in_a_ebno(const std::string &_method, uint _code_len, double _ebno, uint _counts, long double &__FER, long double &__BER);
-uint run_a_codeword(const std::string &_method, uint _code_len, double _sigma2);	//return val: number of error bits
+void run_in_a_ebno(const St_CodeInfo& _st_code_info, const uint _counts,
+				   const double _ebno, long double &__FER);
+BOOL run_a_codeword(const St_CodeInfo& _st_code_info, const double _sigma2);
 
-#ifdef LJQ_COM
-#else
-void plot_curve(const std::string &_method, const double _ebno[], 
-							const long double _BER[], const long double _FER[], 
-							const uint _code_len, const uint _snr_cnt);
+
+#ifndef LJQ_COM
+void plot_curve(const St_CodeInfo& _st_code_info, const uint _snr_cnt,
+				const double _ebno[], const long double _FER[]);
 #endif
 
-void save_simulation_result(const std::string &_method, const double _ebno[], 
-							const long double _BER[], const long double _FER[], 
-							const uint _Counts_Of_Each_Ebno[],
-							const uint _code_len, const uint _snr_cnt, 
+void save_simulation_result(const St_CodeInfo& _st_code_info,
+							const uint _snr_cnt,  const uint _Counts_Of_Each_Ebno[],
+							const double _ebno[], const long double _FER[], 
 							const time_t &_start, const time_t &_end);
 
 void save_run_time(std::ofstream& fname, const time_t &_start, const time_t &_end);

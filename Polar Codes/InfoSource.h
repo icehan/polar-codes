@@ -8,14 +8,15 @@
 class InfoSource
 {
 public:
-	void ShowInfo();
-	InfoSource(uint infoLength);
-	InfoSource(int a[], int len);
+	InfoSource(int len);
+	InfoSource(uint a[], int len);
+	InfoSource();
 	~InfoSource() {};
+	void ShowInfo();
 
 public:
 	std::vector<uint> infoBits;
-	std::size_t infoLen;
+	int infoLen;
 };
 
 #endif

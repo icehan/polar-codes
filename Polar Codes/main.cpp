@@ -2,43 +2,54 @@
 #include<omp.h>
 using namespace std;
 
-/*
+
 int main()
 {
-	//256 SC
-	uint Counts_Of_Each_Ebno[] =  {50,   50,   50, 50,  50, 100,  500, 500, 5000, 20000, 50000, 200000, 1000000};
-	const double Eb_N0[] =        {-1.0, -0.5, 0,  0.5, 1,  1.5,  2,   2.5, 3,    3.5,   4,     4.5,    5};
-
-	//1024 CA-SCL L = 1
-//	uint Counts_Of_Each_Ebno[] =  {500, 500,  500, 1000, 1000, 10000, 10000, 50000, 50000};
-//	const double Eb_N0[] =        {1.5, 1.75, 2.0, 2.25, 2.5,  2.75,  3.0,   3.25,  3.5};
-
-	long double BER[sizeof(Eb_N0)/sizeof(double)] = {0};
+	//L=1
+	uint Counts_Of_Each_Ebno[] =  { 1000,  1000,  1000,  5000,  5000, 10000, 30000, 50000,  500000 };
+	const double Eb_N0[] =        { 1.5,   1.75,  2,     2.25,  2.5,  2.75,  3,     3.25,   3.5};
+/*
+	//L=2
+	uint Counts_Of_Each_Ebno[] =  { 1000,  1000,  5000,  10000, 50000, 100000, 500000};
+	const double Eb_N0[] =        { 1.5,   1.75,  2,     2.25,  2.5,   2.75,   3};
+	//L=4
+	uint Counts_Of_Each_Ebno[] =  { 1000,  1000,  5000,  5000,  10000, 50000,  200000 };
+	const double Eb_N0[] =		  { 1.0,   1.25,  1.5,   1.75,  2.0,   2.25,   2.5 };
+	//L=8
+	uint Counts_Of_Each_Ebno[] =  { 1000,  1000,  5000,  10000, 50000, 200000 };
+	const double Eb_N0[] =		  { 1.0,   1.25,  1.5,   1.75,  2.0,   2.25};
+	//L=16
+	uint Counts_Of_Each_Ebno[] =  { 1000,  2000,  5000,  20000, 100000, 500000 };
+	const double Eb_N0[] =		  { 1.0,   1.25,  1.5,   1.75,  2.0,    2.25 };
+	//L=32
+	uint Counts_Of_Each_Ebno[] =  { 1000,  1000,  2000,  10000, 50000, 300000 };
+	const double Eb_N0[] =        { 0.75,  1.0,   1.25,  1.5,   1.75,  2.0};
+*/
 	long double FER[sizeof(Eb_N0)/sizeof(double)] = {0};
 
-	string Method_Of_Decoding = "SC";
-	uint Code_Len = 256;
+	St_CodeInfo st_code_info;
+	st_code_info.method_of_decoding = "CA-SCL";
+	st_code_info.search_width = 1;
+	st_code_info.code_len = 1024;
 
 	//simulation
 	time_t t_start = time(NULL);
-	for (int i = 0; i < sizeof(Eb_N0)/sizeof(double); i++)	// loop for every Eb/N0
-		run_in_a_ebno(Method_Of_Decoding, Code_Len, Eb_N0[i], Counts_Of_Each_Ebno[i], FER[i], BER[i]);
+	for (int i = 0; i < sizeof(Eb_N0) / sizeof(double); i++)	// loop for every Eb/N0
+		run_in_a_ebno(st_code_info, Counts_Of_Each_Ebno[i], Eb_N0[i], FER[i]);
 	time_t t_end = time(NULL);
 
 	//write results into file
-	save_simulation_result(Method_Of_Decoding, Eb_N0, BER, FER, Counts_Of_Each_Ebno, Code_Len, sizeof(Eb_N0)/sizeof(double), t_start, t_end);
+	save_simulation_result(st_code_info, sizeof(Eb_N0) / sizeof(double), Counts_Of_Each_Ebno, Eb_N0, FER, t_start, t_end);
 
-#ifdef LJQ_COM
-
-#else
+#ifndef LJQ_COM
 	//plot curve using matlab
-	plot_curve(Method_Of_Decoding, Eb_N0, BER, FER, Code_Len, sizeof(Eb_N0)/sizeof(double));
+	plot_curve(st_code_info, sizeof(Eb_N0) / sizeof(double), Eb_N0, FER);
 #endif
 
 	return 0;
 }
-*/
 
+/*
 int main()
 {
 	#pragma omp parallel for
@@ -71,3 +82,4 @@ int main()
 	}
 	return 0;
 }
+*/
